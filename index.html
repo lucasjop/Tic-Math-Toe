@@ -2,21 +2,22 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Tic-Math-Toe</title>
 <style>
-body{font-family:Arial;background:linear-gradient(135deg,#4facfe,#00f2fe);margin:0;display:flex;justify-content:center;align-items:center;height:100vh;}
-.container{background:white;padding:20px;border-radius:15px;box-shadow:0 10px 25px rgba(0,0,0,0.2);width:340px;text-align:center;box-sizing:border-box;}
-input,select,button{width:100%;padding:10px;margin:8px 0;border-radius:8px;border:1px solid #ccc;box-sizing:border-box;}
+body{font-family:Arial;background:linear-gradient(135deg,#4facfe,#00f2fe);margin:0;display:flex;justify-content:center;align-items:center;min-height:100vh;}
+.container{background:white;padding:20px;border-radius:15px;box-shadow:0 10px 25px rgba(0,0,0,0.2);width:95%;max-width:380px;text-align:center;box-sizing:border-box;}
+input,select,button{width:100%;padding:12px;margin:8px 0;border-radius:10px;border:1px solid #ccc;box-sizing:border-box;font-size:16px;}
 button{background:#4facfe;color:white;border:none;cursor:pointer;}
 button:hover{background:#00c6ff;}
 .hidden{display:none;}
-.board{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-top:15px;}
-.cell{background:#eee;height:80px;font-size:2em;display:flex;justify-content:center;align-items:center;cursor:pointer;border-radius:8px;}
+.board{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:15px;}
+.cell{background:#eee;height:90px;font-size:2em;display:flex;justify-content:center;align-items:center;cursor:pointer;border-radius:10px;}
 .blocked{background:#ffb3b3;}
 .popup,.overlay{display:none;position:fixed;}
 .overlay{top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);}
-.popup{top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:20px;border-radius:10px;width:280px;box-sizing:border-box;text-align:center;}
-.timerText{font-weight:bold;margin-bottom:10px;color:#ff4d4d;}
+.popup{top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:20px;border-radius:12px;width:90%;max-width:300px;box-sizing:border-box;text-align:center;}
+.timerText{font-weight:bold;margin-bottom:10px;color:#ff4d4d;font-size:18px;}
 </style>
 </head>
 <body>
@@ -60,8 +61,14 @@ Vitória: 3 em linha ou adversário sem jogadas.
 <div class="popup" id="question">
 <div class="timerText" id="timer"></div>
 <h3 id="qText"></h3>
-<input id="answer" placeholder="Resposta">
+<input id="answer" type="number" inputmode="numeric" placeholder="Resposta">
 <button onclick="submitAnswer()">Responder</button>
+</div>
+
+<div class="popup" id="errorPopup">
+<h3>Jogada errada!</h3>
+<p>Tente novamente.</p>
+<button onclick="closeError()">OK</button>
 </div>
 
 <div class="popup" id="endGame">
@@ -85,6 +92,7 @@ const answer=document.getElementById('answer');
 const endGame=document.getElementById('endGame');
 const endText=document.getElementById('endText');
 const timerDisplay=document.getElementById('timer');
+const errorPopup=document.getElementById('errorPopup');
 
 function initState(){board=Array(9).fill(null);current=0;blocked=[];selectedCell=null;gameOver=false;clearTimer();}
 
@@ -111,14 +119,16 @@ function generateQuestion(){let a,b;if(level===1){a=rand(1,9);b=rand(1,9);}if(le
 
 function rand(min,max){return Math.floor(Math.random()*(max-min+1))+min;}
 
-function submitAnswer(){if(gameOver) return;clearTimer();let val=parseInt(answer.value);hideQuestion();if(val===correct){board[selectedCell]=symbols[current];drawBoard();if(checkWin()){end(`${players[current]} ganhou!`);return;}nextPlayer();} else {failMove();}drawBoard();}
+function submitAnswer(){if(gameOver) return;clearTimer();let val=parseInt(answer.value);hideQuestion();if(val===correct){board[selectedCell]=symbols[current];drawBoard();if(checkWin()){end(`${players[current]} ganhou!`);return;}nextPlayer();} else {failMove(true);}drawBoard();}
 
-function failMove(){blocked.push(selectedCell);if(noMoves()){end(`${players[current]} perdeu!`);}}
+function failMove(showMsg=false){blocked.push(selectedCell);if(showMsg) showError();if(noMoves()){end(`${players[current]} perdeu!`);}}
 
-function startTimer(){clearTimer();timeLeft = level===1?10:level===2?20:30;updateTimerDisplay();timerInterval=setInterval(()=>{timeLeft--;updateTimerDisplay();if(timeLeft<=0){clearTimer();hideQuestion();failMove();drawBoard();}},1000);}
+function showError(){overlay.style.display='block';errorPopup.style.display='block';}
+function closeError(){overlay.style.display='none';errorPopup.style.display='none';}
+
+function startTimer(){clearTimer();timeLeft = level===1?10:level===2?20:30;updateTimerDisplay();timerInterval=setInterval(()=>{timeLeft--;updateTimerDisplay();if(timeLeft<=0){clearTimer();hideQuestion();failMove(true);drawBoard();}},1000);}
 
 function updateTimerDisplay(){timerDisplay.innerText=`Tempo: ${timeLeft}s`;}
-
 function clearTimer(){if(timerInterval){clearInterval(timerInterval);timerInterval=null;}timerDisplay.innerText='';}
 
 function nextPlayer(){current=1-current;blocked=[];updateTurn();}
