@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tic-Math-Toe</title>
+<style>
+body{font-family:Arial;background:linear-gradient(135deg,#4facfe,#00f2fe);margin:0;display:flex;justify-content:center;align-items:center;min-height:100vh;}
+.container{background:white;padding:20px;border-radius:15px;box-shadow:0 10px 25px rgba(0,0,0,0.2);width:95%;max-width:380px;text-align:center;box-sizing:border-box;}
+input,select,button{width:100%;padding:12px;margin:8px 0;border-radius:10px;border:1px solid #ccc;box-sizing:border-box;font-size:16px;}
+button{background:#4facfe;color:white;border:none;cursor:pointer;}
+button:hover{background:#00c6ff;}
+.hidden{display:none;}
+.board{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:15px;}
+.cell{background:#eee;height:90px;font-size:2em;display:flex;justify-content:center;align-items:center;cursor:pointer;border-radius:10px;}
+.blocked{background:#ffb3b3;}
+.popup,.overlay{display:none;position:fixed;}
+.overlay{top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);}
+.popup{top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:20px;border-radius:12px;width:90%;max-width:300px;box-sizing:border-box;text-align:center;}
+.timerText{font-weight:bold;margin-bottom:10px;color:#ff4d4d;font-size:18px;}
+</style>
+</head>
+<body>
+
+<div class="container" id="menu">
+<h1>Tic-Math-Toe</h1>
+<p>Idealizador: Lucas Cavalcanti Cruz<br>Desenvolvedor: Renato - ChatGPT</p>
+<input id="p1" placeholder="Jogador 1">
+<div style="display:flex;gap:5px;align-items:center;">
+<input id="p2" placeholder="Jogador 2">
+<label style="font-size:12px;"><input type="checkbox" id="vsComputer" onchange="toggleComputer()"> CPU</label>
+</div>
+<select id="level">
+<option value="1">Iniciante</option>
+<option value="2">Intermediário</option>
+<option value="3">Avançado</option>
+</select>
+<label><input type="checkbox" id="useTimer"> Ativar tempo</label>
+<button onclick="showRules()">Regras</button>
+<button onclick="startGame()">Iniciar</button>
+</div>
+
+<div class="container hidden" id="game">
+<h2 id="turn"></h2>
+<div class="board" id="board"></div>
+<button onclick="goHome()">Início</button>
+<button onclick="resetGame()">Reset</button>
+</div>
+
+<div class="overlay" id="overlay"></div>
+
+<div class="popup" id="rules">
+<h3>Regras</h3>
+<p>
+Resolva multiplicações para jogar.<br>
+Acertou: marca a casa.<br>
+Errou ou tempo esgotado: casa bloqueada só naquele turno.<br>
+Continue até acertar.<br>
+Vitória: 3 em linha, erro sem jogadas ou empate.
+</p>
+<button onclick="hideRules()">Fechar</button>
+</div>
+
+<div class="popup" id="question">
+<div class="timerText" id="timer"></div>
+<h3 id="qText"></h3>
+<input id="answer" type="number" inputmode="numeric" placeholder="Resposta">
+<button onclick="submitAnswer()">Responder</button>
+</div>
+
+<div class="popup" id="errorPopup">
+<h3 id="errorTitle">Jogada errada!</h3>
+<p id="errorText">Tente novamente.</p>
+<button onclick="closeError()">OK</button>
+</div>
+
+<div class="popup" id="endGame">
+<h3 id="endText"></h3>
+<button onclick="hideEnd()">OK</button>
+</div>
+
+<script>
+let board, current, players=[], symbols=['X','O'], blocked, selectedCell, level, gameOver;
+let useTimer=false, timerInterval=null, timeLeft=0;
+let vsComputerMode=false;
+let isFinalError=false;
+
+const menu=document.getElementById('menu');
+const game=document.getElementById('game');
+const boardDiv=document.getElementById('board');
+const turn=document.getElementById('turn');
+const overlay=document.getElementById('overlay');
+const rules=document.getElementById('rules');
+const question=document.getElementById('question');
+const qText=document.getElementById('qText');
+const answer=document.getElementById('answer');
+const endGame=document.getElementById('endGame');
+const endText=document.getElementById('endText');
+const timerDisplay=document.getElementById('timer');
+const errorPopup=document.getElementById('errorPopup');
+const errorText=document.getElementById('errorText');
+
+function clearTimer(){ if(timerInterval){ clearInterval(timerInterval); timerInterval=null;} if(timerDisplay) timerDisplay.innerText=''; }
+
+function toggleComputer(){
+let chk=document.getElementById('vsComputer').checked;
+document.getElementById('p2').disabled=chk;
+if(chk) document.getElementById('p2').value='Computador';
+}
+
+function initState(){
+  board=Array(9).fill(null);
+  current=0;
+  blocked=[];
+  selectedCell=null;
+  gameOver=false;
+  isFinalError=false;
+  clearTimer();
+}
+
+function startGame(){
+players=[p1.value,p2.value];
+if(!players[0]||!players[1]) return alert('Preencha os nomes');
+level=parseInt(document.getElementById('level').value);
+useTimer=document.getElementById('useTimer').checked;
+vsComputerMode=document.getElementById('vsComputer').checked;
+initState();
+menu.classList.add('hidden');
+game.classList.remove('hidden');
+drawBoard();updateTurn();
+}
+
+function resetGame(){initState();drawBoard();updateTurn();}
+function goHome(){initState();game.classList.add('hidden');menu.classList.remove('hidden');}
+
+function drawBoard(){boardDiv.innerHTML='';board.forEach((v,i)=>{let cell=document.createElement('div');cell.className='cell';if(blocked.includes(i)) cell.classList.add('blocked');cell.innerText=v||'';cell.onclick=()=>clickCell(i);boardDiv.appendChild(cell);});}
+
+function clickCell(i){if(gameOver) return;if(vsComputerMode && current===1) return;if(board[i]||blocked.includes(i)) return;selectedCell=i;generateQuestion();}
+
+let correct;
+function generateQuestion(){let a,b;if(level===1){a=rand(1,9);b=rand(1,9);}if(level===2){a=rand(10,99);b=rand(1,9);}if(level===3){a=rand(10,99);b=rand(10,99);}correct=a*b;qText.innerText=`${a} x ${b} = ?`;showQuestion();if(useTimer) startTimer();}
+
+function rand(min,max){return Math.floor(Math.random()*(max-min+1))+min;}
+
+function submitAnswer(){if(gameOver) return;clearTimer();let val=parseInt(answer.value);hideQuestion();
+if(val===correct){board[selectedCell]=symbols[current];drawBoard();if(checkWin()){end(`${players[current]} ganhou!`);return;}if(checkDraw()){end('Empate!');return;}nextPlayer();} 
+else {failMove();}
+drawBoard();}
+
+function failMove(){
+  blocked.push(selectedCell);
+
+  if(noMoves()){
+    isFinalError=true;
+    errorText.innerText='Não há mais jogadas possíveis. Você perdeu.';
+    showError();
+    return;
+  }
+
+  isFinalError=false;
+  errorText.innerText='Tente novamente.';
+  showError();
+}
+
+function closeError(){
+  overlay.style.display='none';
+  errorPopup.style.display='none';
+
+  if(isFinalError){
+    isFinalError=false;
+    endLoss();
+  }
+}
+
+function endLoss(){
+let winner = current===0?players[1]:players[0];
+end(`Parabéns! ${winner} venceu!`);
+}
+
+function checkDraw(){return board.filter(x=>x!==null).length===9;}
+
+function nextPlayer(){current=1-current;blocked=[];updateTurn();if(vsComputerMode && current===1){setTimeout(computerPlay,500);} }
+function updateTurn(){turn.innerText=`Vez de ${players[current]} (${symbols[current]})`;}
+
+function computerPlay(){if(gameOver) return;let empty=board.map((v,i)=>v?null:i).filter(v=>v!==null);
+let move=empty[Math.floor(Math.random()*empty.length)];board[move]=symbols[current];drawBoard();if(checkWin()){end(`${players[current]} ganhou!`);return;}if(checkDraw()){end('Empate!');return;}nextPlayer();}
+
+function noMoves(){return board.every((v,i)=>v||blocked.includes(i));}
+
+function checkWin(){const w=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];return w.some(c=>c.every(i=>board[i]===symbols[current]));}
+
+function end(msg){gameOver=true;clearTimer();endText.innerText=msg;overlay.style.display='block';endGame.style.display='block';}
+
+function hideEnd(){overlay.style.display='none';endGame.style.display='none';}
+function showRules(){overlay.style.display='block';rules.style.display='block';}
+function hideRules(){overlay.style.display='none';rules.style.display='none';}
+function showQuestion(){overlay.style.display='block';question.style.display='block';answer.focus();}
+function hideQuestion(){overlay.style.display='none';question.style.display='none';answer.value='';}
+function showError(){overlay.style.display='block';errorPopup.style.display='block';}
+
+answer.addEventListener('keypress',function(e){if(e.key==='Enter') submitAnswer();});
+</script>
+
+</body>
+</html>
